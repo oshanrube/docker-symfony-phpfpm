@@ -1,0 +1,35 @@
+#!/bin/bash -e
+#
+# S2I assemble script for the 'symfony' image.
+# The 'assemble' script builds your application source ready to run.
+#
+# For more information refer to the documentation:
+#	https://github.com/openshift/source-to-image/blob/master/docs/builder_image.md
+#
+
+if [ "$1" = "-h" ]; then
+	# If the 'symfony' assemble script is executed with '-h' flag,
+	# print the usage.
+	exec /usr/local/s2i/usage
+fi
+
+# Restore artifacts from the previous build (if they exist).
+#
+if [ "$(ls /tmp/artifacts/ 2>/dev/null)" ]; then
+  echo "---> Restoring build artifacts"
+  cp -Rf /tmp/artifacts/htdocs/. /var/www/html
+else
+	echo "---> Installing application source"
+	mv /tmp/src/* /var/www/html
+	mv /var/www/html/app/config/parameters.php-dist /var/www/html/app/config/parameters.php
+	cd /var/www/html/ && php -dmemory_limit=2G /usr/local/bin/composer install
+	php /var/www/html/bin/console doctrine:schema:update --force
+	php /var/www/html/bin/console assetic:dump --env=prod
+fi
+
+echo "<?php echo '1';" > /var/www/html/web/health.php
+
+echo "---> Building application from source"
+# TODO: Add build steps for your application, eg npm install, bundle install
+chmod -R a+rwx /var/www/html && chown -R 1001:0 /var/www/html
+echo "---> Done building application from source"
